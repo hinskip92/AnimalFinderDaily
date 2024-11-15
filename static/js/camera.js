@@ -27,8 +27,22 @@ const initCamera = () => {
 
     function stopCamera() {
         if (stream) {
-            stream.getTracks().forEach(track => track.stop());
+            stream.getTracks().forEach(track => {
+                track.stop();
+            });
+            stream = null;
         }
+        if (video.srcObject) {
+            video.srcObject = null;
+        }
+    }
+
+    function showErrorMessage(message) {
+        recognitionResult.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="fas fa-exclamation-circle me-2"></i>${message}
+            </div>
+        `;
     }
 
     function showShareOptions(shareUrl) {
@@ -81,9 +95,14 @@ const initCamera = () => {
         
         // Add location if available
         if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(position => {
-                formData.append('location', `${position.coords.latitude},${position.coords.longitude}`);
-            });
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    formData.append('location', `${position.coords.latitude},${position.coords.longitude}`);
+                },
+                error => {
+                    console.warn('Location error:', error);
+                }
+            );
         }
         
         fetch('/api/recognize', {
@@ -92,11 +111,14 @@ const initCamera = () => {
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
             return response.json();
         })
         .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
             recognitionResult.textContent = data.result;
             if (data.new_badges) {
                 showBadgeNotification(data.new_badges);
@@ -107,23 +129,38 @@ const initCamera = () => {
         })
         .catch(error => {
             console.error('Error:', error);
-            recognitionResult.innerHTML = '<div class="alert alert-danger">Error processing image. Please try again.</div>';
+            showErrorMessage('Error processing image. Please try again.');
         });
     }
 
     // Handle camera capture
     if (captureBtn) {
         captureBtn.addEventListener('click', () => {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            canvas.getContext('2d').drawImage(video, 0, 0);
-            
-            canvas.toBlob(blob => {
-                const formData = new FormData();
-                formData.append('camera_image', blob, 'capture.jpg');
-                handleImageSubmission(formData);
-                stopCamera();
-            }, 'image/jpeg');
+            try {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                
+                if (!ctx) {
+                    throw new Error('Could not get canvas context');
+                }
+                
+                ctx.drawImage(video, 0, 0);
+                
+                canvas.toBlob(blob => {
+                    if (!blob) {
+                        throw new Error('Failed to create blob from canvas');
+                    }
+                    
+                    const formData = new FormData();
+                    formData.append('camera_image', new Blob([blob], { type: 'image/jpeg' }), 'capture.jpg');
+                    handleImageSubmission(formData);
+                    stopCamera();
+                }, 'image/jpeg', 0.95);
+            } catch (error) {
+                console.error('Capture error:', error);
+                showErrorMessage('Failed to capture image. Please try again or use file upload.');
+            }
         });
     }
 
@@ -135,7 +172,12 @@ const initCamera = () => {
             const file = fileInput.files[0];
             
             if (!file) {
-                alert('Please select a file first');
+                showErrorMessage('Please select a file first');
+                return;
+            }
+
+            if (!file.type.startsWith('image/')) {
+                showErrorMessage('Please select an image file');
                 return;
             }
 
