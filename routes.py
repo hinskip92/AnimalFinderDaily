@@ -74,7 +74,8 @@ def register_routes(app):
             spotting = AnimalSpotting(
                 task_id=task_id,
                 image_path=filename,
-                recognition_result=result,
+                recognition_result=result["animal"],
+                detailed_info=result["details"],
                 location=request.form.get('location')
             )
             spotting.generate_share_id()  # Generate unique share ID
@@ -86,7 +87,8 @@ def register_routes(app):
             badge_names = [badge.name for badge in new_badges]
             
             return jsonify({
-                'result': result,
+                'result': result["animal"],
+                'details': result["details"],
                 'new_badges': badge_names,
                 'share_url': url_for('share', share_id=spotting.share_id, _external=True)
             })

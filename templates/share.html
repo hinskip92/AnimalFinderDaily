@@ -23,13 +23,32 @@
                     </p>
                 </div>
 
+                {% if spotting.detailed_info %}
+                <div class="animal-details mb-4">
+                    <h4>About this Animal</h4>
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <p><strong>Habitat:</strong> {{ spotting.detailed_info.habitat }}</p>
+                            <p><strong>Diet:</strong> {{ spotting.detailed_info.diet }}</p>
+                            <p><strong>Behavior:</strong> {{ spotting.detailed_info.behavior }}</p>
+                            <h5 class="mt-3">Interesting Facts:</h5>
+                            <ul class="list-unstyled">
+                                {% for fact in spotting.detailed_info.interesting_facts %}
+                                <li><i class="fas fa-circle-info me-2"></i>{{ fact }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 {% if spotting.badges %}
                 <div class="text-center mb-4">
                     <h4>Achievements Earned</h4>
                     <div class="d-flex justify-content-center gap-2">
                         {% for badge in spotting.badges %}
                         <div class="badge bg-secondary">
-                            <i class="{{ badge.icon_class }} me-1"></i>
+                            <i class="{{ badge.icon_class }} me-2"></i>
                             {{ badge.name }}
                         </div>
                         {% endfor %}

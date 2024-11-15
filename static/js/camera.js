@@ -228,7 +228,21 @@ const initCamera = () => {
             }
             recognitionResult.innerHTML = `
                 <div class="alert alert-success">
-                    <i class="fas fa-check-circle me-2"></i>${data.result}
+                    <h4 class="alert-heading">
+                        <i class="fas fa-check-circle me-2"></i>${data.result}
+                    </h4>
+                    <hr>
+                    <div class="animal-details">
+                        <p><strong>Habitat:</strong> ${data.details.habitat}</p>
+                        <p><strong>Diet:</strong> ${data.details.diet}</p>
+                        <p><strong>Behavior:</strong> ${data.details.behavior}</p>
+                        <h5 class="mt-3">Interesting Facts:</h5>
+                        <ul class="list-unstyled">
+                            ${data.details.interesting_facts.map(fact => 
+                                `<li><i class="fas fa-circle-info me-2"></i>${fact}</li>`
+                            ).join('')}
+                        </ul>
+                    </div>
                 </div>
             `;
             if (data.new_badges) {

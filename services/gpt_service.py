@@ -1,6 +1,8 @@
 import base64
 from flask import current_app
 import requests
+import json
+from openai import OpenAI
 
 def get_mock_tasks():
     """Return mock tasks when OpenAI API key is not available"""
@@ -18,7 +20,15 @@ def get_mock_tasks():
 
 def get_mock_recognition():
     """Return mock recognition when OpenAI API key is not available"""
-    return "Demo mode: Waiting for GPT-4 Vision integration to identify animals."
+    return {
+        "animal": "Demo Animal",
+        "details": {
+            "habitat": "Demo habitat information",
+            "diet": "Demo diet information",
+            "behavior": "Demo behavior information",
+            "interesting_facts": ["Demo fact 1", "Demo fact 2"]
+        }
+    }
 
 def generate_tasks(location_info):
     api_key = current_app.config.get('OPENAI_API_KEY')
@@ -32,19 +42,13 @@ def generate_tasks(location_info):
     that would be realistic to find in this area. Return as JSON."""
     
     try:
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "gpt-4o",
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0.7
-            }
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"}
         )
-        return response.json()["choices"][0]["message"]["content"]
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
         current_app.logger.error(f"Error calling OpenAI API: {str(e)}")
         return get_mock_tasks()
@@ -59,27 +63,34 @@ def recognize_animal(image_path):
         with open(image_path, "rb") as image_file:
             base64_image = base64.b64encode(image_file.read()).decode('utf-8')
             
-        response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "gpt-4o",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": "What animal is in this image?"},
-                            {"type": "image_url", "image_url": f"data:image/jpeg;base64,{base64_image}"}
-                        ]
-                    }
-                ]
+        client = OpenAI(api_key=api_key)
+        prompt = """Analyze this image and provide detailed information about the animal in the following JSON format:
+        {
+            "animal": "Name of the animal",
+            "details": {
+                "habitat": "Natural habitat and geographical distribution",
+                "diet": "Feeding habits and typical food sources",
+                "behavior": "Notable behavioral characteristics",
+                "interesting_facts": ["3-4 interesting facts about the animal"]
             }
+        }
+        Be specific but concise. Ensure all fields are filled with accurate information."""
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": f"data:image/jpeg;base64,{base64_image}"}
+                    ]
+                }
+            ],
+            response_format={"type": "json_object"}
         )
         
-        return response.json()["choices"][0]["message"]["content"]
+        return json.loads(response.choices[0].message.content)
     except Exception as e:
         current_app.logger.error(f"Error calling OpenAI API: {str(e)}")
         return get_mock_recognition()
