@@ -18,7 +18,7 @@ def get_mock_tasks():
 
 def get_mock_recognition():
     """Return mock recognition when OpenAI API key is not available"""
-    return "This is a demo response. In live mode, GPT-4 Vision would analyze your image and identify the animal."
+    return "Demo mode: Waiting for GPT-4 Vision integration to identify animals."
 
 def generate_tasks(location_info):
     api_key = current_app.config.get('OPENAI_API_KEY')

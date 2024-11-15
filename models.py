@@ -14,7 +14,7 @@ class AnimalSpotting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     task_id = db.Column(db.Integer, db.ForeignKey('task.id'))
     image_path = db.Column(db.String(255))
-    recognition_result = db.Column(db.String(100))
+    recognition_result = db.Column(db.String(500))  # Increased from 100 to 500
     confidence_score = db.Column(db.Float)
     spotted_at = db.Column(db.DateTime, default=datetime.utcnow)
     location = db.Column(db.String(100))
