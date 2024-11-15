@@ -1,0 +1,40 @@
+/* Custom styles on top of Bootstrap */
+.camera-container {
+    position: relative;
+    width: 100%;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+#camera-preview {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+#capture-canvas {
+    display: none;
+}
+
+.camera-controls {
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    text-align: center;
+}
+
+.task-card {
+    transition: transform 0.2s;
+}
+
+.task-card:hover {
+    transform: translateY(-2px);
+}
+
+.recognition-result {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bs-gray-800);
+    border-radius: 8px;
+}
