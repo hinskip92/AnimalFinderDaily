@@ -37,7 +37,24 @@ const initCamera = () => {
         }
     }
 
-    function showErrorMessage(message) {
+    function showNotification(message, type = 'success') {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show`;
+        notification.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.camera-container').insertAdjacentElement('afterend', notification);
+        
+        setTimeout(() => {
+            notification.remove();
+        }, 3000);
+    }
+
+    function showErrorMessage(message, error = null) {
+        if (error) {
+            console.error('Error:', error);
+        }
         recognitionResult.innerHTML = `
             <div class="alert alert-danger">
                 <i class="fas fa-exclamation-circle me-2"></i>${message}
@@ -45,31 +62,87 @@ const initCamera = () => {
         `;
     }
 
+    async function copyToClipboard(text) {
+        try {
+            await navigator.clipboard.writeText(text);
+            showNotification('<i class="fas fa-check me-2"></i>Link copied to clipboard!');
+        } catch (error) {
+            console.error('Clipboard error:', error);
+            showNotification('Failed to copy link to clipboard', 'danger');
+        }
+    }
+
+    function createSocialShareButton(platform, url, icon, color) {
+        const button = document.createElement('button');
+        button.className = `btn btn-outline-${color}`;
+        button.innerHTML = `<i class="${icon} me-2"></i>Share on ${platform}`;
+        
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            try {
+                const shareWindow = window.open(url, '_blank');
+                if (!shareWindow) {
+                    throw new Error('Popup blocked');
+                }
+            } catch (error) {
+                console.error(`${platform} share error:`, error);
+                showNotification(`Failed to open ${platform} share. Please check your popup settings.`, 'warning');
+            }
+        });
+        
+        return button;
+    }
+
     function showShareOptions(shareUrl) {
+        // Remove existing share container if present
         const existingShare = document.querySelector('.share-container');
         if (existingShare) {
             existingShare.remove();
         }
 
-        const shareContainer = document.createElement('div');
-        shareContainer.className = 'share-container mt-3';
-        shareContainer.innerHTML = `
-            <div class="d-flex justify-content-center gap-2">
-                <button onclick="window.open('https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}', '_blank')" 
-                        class="btn btn-outline-info">
-                    <i class="fab fa-twitter me-2"></i>Share on Twitter
-                </button>
-                <button onclick="window.open('https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}', '_blank')" 
-                        class="btn btn-outline-primary">
-                    <i class="fab fa-facebook me-2"></i>Share on Facebook
-                </button>
-                <button onclick="navigator.clipboard.writeText('${shareUrl}').then(() => alert('Link copied!'))" 
-                        class="btn btn-outline-secondary">
-                    <i class="fas fa-link me-2"></i>Copy Link
-                </button>
-            </div>
-        `;
-        recognitionResult.insertAdjacentElement('afterend', shareContainer);
+        try {
+            // Encode the URL properly
+            const encodedUrl = encodeURIComponent(shareUrl);
+            
+            const shareContainer = document.createElement('div');
+            shareContainer.className = 'share-container mt-3';
+            
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'd-flex justify-content-center gap-2 flex-wrap';
+            
+            // Twitter share button
+            buttonContainer.appendChild(
+                createSocialShareButton(
+                    'Twitter',
+                    `https://twitter.com/intent/tweet?url=${encodedUrl}&text=Check out this animal I spotted!`,
+                    'fab fa-twitter',
+                    'info'
+                )
+            );
+            
+            // Facebook share button
+            buttonContainer.appendChild(
+                createSocialShareButton(
+                    'Facebook',
+                    `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
+                    'fab fa-facebook',
+                    'primary'
+                )
+            );
+            
+            // Copy link button
+            const copyButton = document.createElement('button');
+            copyButton.className = 'btn btn-outline-secondary';
+            copyButton.innerHTML = '<i class="fas fa-link me-2"></i>Copy Link';
+            copyButton.addEventListener('click', () => copyToClipboard(shareUrl));
+            buttonContainer.appendChild(copyButton);
+            
+            shareContainer.appendChild(buttonContainer);
+            recognitionResult.insertAdjacentElement('afterend', shareContainer);
+        } catch (error) {
+            console.error('Share options error:', error);
+            showErrorMessage('Failed to create share options', error);
+        }
     }
 
     function showBadgeNotification(badges) {
@@ -93,7 +166,6 @@ const initCamera = () => {
     function handleImageSubmission(formData) {
         recognitionResult.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
         
-        // Add location if available
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 position => {
@@ -119,7 +191,11 @@ const initCamera = () => {
             if (data.error) {
                 throw new Error(data.error);
             }
-            recognitionResult.textContent = data.result;
+            recognitionResult.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>${data.result}
+                </div>
+            `;
             if (data.new_badges) {
                 showBadgeNotification(data.new_badges);
             }
@@ -128,8 +204,8 @@ const initCamera = () => {
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            showErrorMessage('Error processing image. Please try again.');
+            console.error('Recognition error:', error);
+            showErrorMessage('Error processing image. Please try again.', error);
         });
     }
 
@@ -153,13 +229,13 @@ const initCamera = () => {
                     }
                     
                     const formData = new FormData();
-                    formData.append('camera_image', new Blob([blob], { type: 'image/jpeg' }), 'capture.jpg');
+                    formData.append('camera_image', blob, 'capture.jpg');
                     handleImageSubmission(formData);
                     stopCamera();
                 }, 'image/jpeg', 0.95);
             } catch (error) {
                 console.error('Capture error:', error);
-                showErrorMessage('Failed to capture image. Please try again or use file upload.');
+                showErrorMessage('Failed to capture image. Please try again or use file upload.', error);
             }
         });
     }
