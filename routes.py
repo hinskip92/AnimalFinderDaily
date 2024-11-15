@@ -8,6 +8,10 @@ from services.location_service import get_location_info
 from services.achievement_service import AchievementService
 
 def register_routes(app):
+    # Ensure uploads directory exists
+    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+    os.makedirs(uploads_dir, exist_ok=True)
+
     @app.route('/')
     def index():
         return render_template('index.html')
@@ -42,44 +46,56 @@ def register_routes(app):
 
     @app.route('/api/recognize', methods=['POST'])
     def recognize():
-        if 'image' not in request.files:
+        if 'image' not in request.files and 'camera_image' not in request.files:
             return jsonify({'error': 'No image provided'}), 400
             
-        file = request.files['image']
+        file = request.files.get('image') or request.files.get('camera_image')
         if file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
             
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(current_app.root_path, 'static/uploads', filename)
-        file.save(filepath)
-        
-        result = recognize_animal(filepath)
-        
-        # Create spotting record
-        task_id = request.form.get('task_id')
-        if task_id:
-            task = Task.query.get(task_id)
-            spotting = AnimalSpotting(
-                task=task,
-                image_path=filename,
-                recognition_result=result,
-                location=request.form.get('location')
-            )
-            spotting.generate_share_id()  # Generate unique share ID
-            db.session.add(spotting)
-            db.session.commit()
+        try:
+            # Create a unique filename
+            filename = secure_filename(f"{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{file.filename}")
+            filepath = os.path.join(current_app.root_path, 'static/uploads', filename)
             
-            # Check and award achievements
-            new_badges = AchievementService.check_achievements(spotting)
-            badge_names = [badge.name for badge in new_badges]
+            # Ensure the uploads directory exists
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
             
-            return jsonify({
-                'result': result,
-                'new_badges': badge_names,
-                'share_url': url_for('share', share_id=spotting.share_id, _external=True)
-            })
+            # Save the file
+            file.save(filepath)
             
-        return jsonify({'result': result})
+            # Process the image
+            result = recognize_animal(filepath)
+            
+            # Create spotting record
+            task_id = request.form.get('task_id')
+            if task_id:
+                task = Task.query.get(task_id)
+                spotting = AnimalSpotting(
+                    task=task,
+                    image_path=filename,
+                    recognition_result=result,
+                    location=request.form.get('location')
+                )
+                spotting.generate_share_id()  # Generate unique share ID
+                db.session.add(spotting)
+                db.session.commit()
+                
+                # Check and award achievements
+                new_badges = AchievementService.check_achievements(spotting)
+                badge_names = [badge.name for badge in new_badges]
+                
+                return jsonify({
+                    'result': result,
+                    'new_badges': badge_names,
+                    'share_url': url_for('share', share_id=spotting.share_id, _external=True)
+                })
+                
+            return jsonify({'result': result})
+            
+        except Exception as e:
+            current_app.logger.error(f"Error processing image: {str(e)}")
+            return jsonify({'error': 'Failed to process image'}), 500
 
     @app.route('/api/badges', methods=['GET'])
     def get_badges():

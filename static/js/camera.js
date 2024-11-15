@@ -2,6 +2,10 @@ const initCamera = () => {
     const video = document.getElementById('camera-preview');
     const captureBtn = document.getElementById('capture-btn');
     const canvas = document.getElementById('capture-canvas');
+    const cameraError = document.getElementById('camera-error');
+    const fileUpload = document.getElementById('file-upload');
+    const uploadForm = document.getElementById('upload-form');
+    const recognitionResult = document.getElementById('recognition-result');
     let stream = null;
 
     async function startCamera() {
@@ -10,9 +14,14 @@ const initCamera = () => {
                 video: { facingMode: 'environment' } 
             });
             video.srcObject = stream;
+            video.parentElement.classList.remove('d-none');
+            fileUpload.classList.add('d-none');
+            cameraError.classList.add('d-none');
         } catch (err) {
             console.error('Camera error:', err);
-            alert('Could not access camera');
+            video.parentElement.classList.add('d-none');
+            fileUpload.classList.remove('d-none');
+            cameraError.classList.remove('d-none');
         }
     }
 
@@ -23,8 +32,13 @@ const initCamera = () => {
     }
 
     function showShareOptions(shareUrl) {
+        const existingShare = document.querySelector('.share-container');
+        if (existingShare) {
+            existingShare.remove();
+        }
+
         const shareContainer = document.createElement('div');
-        shareContainer.className = 'mt-3';
+        shareContainer.className = 'share-container mt-3';
         shareContainer.innerHTML = `
             <div class="d-flex justify-content-center gap-2">
                 <button onclick="window.open('https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}', '_blank')" 
@@ -41,7 +55,7 @@ const initCamera = () => {
                 </button>
             </div>
         `;
-        document.getElementById('recognition-result').insertAdjacentElement('afterend', shareContainer);
+        recognitionResult.insertAdjacentElement('afterend', shareContainer);
     }
 
     function showBadgeNotification(badges) {
@@ -57,55 +71,87 @@ const initCamera = () => {
         
         document.querySelector('.camera-container').insertAdjacentElement('afterend', notification);
         
-        // Auto-dismiss after 5 seconds
         setTimeout(() => {
             notification.remove();
         }, 5000);
     }
 
-    captureBtn.addEventListener('click', () => {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
+    function handleImageSubmission(formData) {
+        recognitionResult.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
         
-        canvas.toBlob(blob => {
-            const formData = new FormData();
-            formData.append('image', blob);
-            
-            // Add task_id if available
-            const taskId = document.getElementById('task-id');
-            if (taskId) {
-                formData.append('task_id', taskId.value);
-            }
-            
-            // Add location if available
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    formData.append('location', `${position.coords.latitude},${position.coords.longitude}`);
-                });
-            }
-            
-            fetch('/api/recognize', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('recognition-result').textContent = data.result;
-                if (data.new_badges) {
-                    showBadgeNotification(data.new_badges);
-                }
-                if (data.share_url) {
-                    showShareOptions(data.share_url);
-                }
-                stopCamera();
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error recognizing animal');
+        // Add location if available
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(position => {
+                formData.append('location', `${position.coords.latitude},${position.coords.longitude}`);
             });
-        }, 'image/jpeg');
-    });
+        }
+        
+        fetch('/api/recognize', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            recognitionResult.textContent = data.result;
+            if (data.new_badges) {
+                showBadgeNotification(data.new_badges);
+            }
+            if (data.share_url) {
+                showShareOptions(data.share_url);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            recognitionResult.innerHTML = '<div class="alert alert-danger">Error processing image. Please try again.</div>';
+        });
+    }
 
+    // Handle camera capture
+    if (captureBtn) {
+        captureBtn.addEventListener('click', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('camera_image', blob, 'capture.jpg');
+                handleImageSubmission(formData);
+                stopCamera();
+            }, 'image/jpeg');
+        });
+    }
+
+    // Handle file upload
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('image-upload');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                alert('Please select a file first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('image', file);
+            handleImageSubmission(formData);
+        });
+    }
+
+    // Start camera by default
     startCamera();
 };
+
+// Initialize when DOM is loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initCamera);
+} else {
+    initCamera();
+}
