@@ -22,6 +22,28 @@ const initCamera = () => {
         }
     }
 
+    function showShareOptions(shareUrl) {
+        const shareContainer = document.createElement('div');
+        shareContainer.className = 'mt-3';
+        shareContainer.innerHTML = `
+            <div class="d-flex justify-content-center gap-2">
+                <button onclick="window.open('https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}', '_blank')" 
+                        class="btn btn-outline-info">
+                    <i class="fab fa-twitter me-2"></i>Share on Twitter
+                </button>
+                <button onclick="window.open('https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}', '_blank')" 
+                        class="btn btn-outline-primary">
+                    <i class="fab fa-facebook me-2"></i>Share on Facebook
+                </button>
+                <button onclick="navigator.clipboard.writeText('${shareUrl}').then(() => alert('Link copied!'))" 
+                        class="btn btn-outline-secondary">
+                    <i class="fas fa-link me-2"></i>Copy Link
+                </button>
+            </div>
+        `;
+        document.getElementById('recognition-result').insertAdjacentElement('afterend', shareContainer);
+    }
+
     function showBadgeNotification(badges) {
         if (!badges || badges.length === 0) return;
         
@@ -72,6 +94,9 @@ const initCamera = () => {
                 document.getElementById('recognition-result').textContent = data.result;
                 if (data.new_badges) {
                     showBadgeNotification(data.new_badges);
+                }
+                if (data.share_url) {
+                    showShareOptions(data.share_url);
                 }
                 stopCamera();
             })

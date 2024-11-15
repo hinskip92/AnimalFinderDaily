@@ -1,5 +1,5 @@
 import os
-from flask import render_template, request, jsonify, current_app
+from flask import render_template, request, jsonify, current_app, url_for, abort
 from werkzeug.utils import secure_filename
 from app import db
 from models import Task, AnimalSpotting, Badge
@@ -20,6 +20,11 @@ def register_routes(app):
     def badges():
         all_badges = Badge.query.all()
         return render_template('badges.html', badges=all_badges)
+        
+    @app.route('/share/<share_id>')
+    def share(share_id):
+        spotting = AnimalSpotting.query.filter_by(share_id=share_id).first_or_404()
+        return render_template('share.html', spotting=spotting)
 
     @app.route('/api/tasks', methods=['POST'])
     def get_tasks():
@@ -60,6 +65,7 @@ def register_routes(app):
                 recognition_result=result,
                 location=request.form.get('location')
             )
+            spotting.generate_share_id()  # Generate unique share ID
             db.session.add(spotting)
             db.session.commit()
             
@@ -69,7 +75,8 @@ def register_routes(app):
             
             return jsonify({
                 'result': result,
-                'new_badges': badge_names
+                'new_badges': badge_names,
+                'share_url': url_for('share', share_id=spotting.share_id, _external=True)
             })
             
         return jsonify({'result': result})

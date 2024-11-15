@@ -1,4 +1,5 @@
 from datetime import datetime
+import uuid
 from app import db
 
 class Task(db.Model):
@@ -17,8 +18,18 @@ class AnimalSpotting(db.Model):
     confidence_score = db.Column(db.Float)
     spotted_at = db.Column(db.DateTime, default=datetime.utcnow)
     location = db.Column(db.String(100))
+    share_id = db.Column(db.String(50), unique=True)
     task = db.relationship('Task', backref=db.backref('spottings', lazy=True))
     badges = db.relationship('Badge', secondary='spotting_badges', back_populates='spottings')
+
+    def generate_share_id(self):
+        if not self.share_id:
+            self.share_id = str(uuid.uuid4())[:8]
+        return self.share_id
+
+    @property
+    def share_url(self):
+        return f"/share/{self.share_id}"
 
 class Badge(db.Model):
     id = db.Column(db.Integer, primary_key=True)

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">Shared Animal Discovery</h2>
+                
+                <div class="text-center mb-4">
+                    <img src="{{ url_for('static', filename='uploads/' + spotting.image_path) }}" 
+                         class="img-fluid rounded" 
+                         alt="Spotted Animal">
+                </div>
+
+                <div class="text-center mb-4">
+                    <h3>{{ spotting.recognition_result }}</h3>
+                    <p class="text-muted">
+                        Spotted on {{ spotting.spotted_at.strftime('%B %d, %Y') }}
+                        {% if spotting.location %}
+                        at {{ spotting.location }}
+                        {% endif %}
+                    </p>
+                </div>
+
+                {% if spotting.badges %}
+                <div class="text-center mb-4">
+                    <h4>Achievements Earned</h4>
+                    <div class="d-flex justify-content-center gap-2">
+                        {% for badge in spotting.badges %}
+                        <div class="badge bg-secondary">
+                            <i class="{{ badge.icon_class }} me-1"></i>
+                            {{ badge.name }}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <div class="text-center">
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        <i class="fas fa-camera me-2"></i>Start Your Own Adventure
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
