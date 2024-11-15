@@ -37,8 +37,10 @@ def generate_tasks(location_info: Dict[str, str]) -> Dict[str, list]:
     
     if not api_key:
         return get_mock_tasks()
-        
-    prompt = f"""Given the location {location_info}, suggest:
+    
+    # Ensure location info is properly encoded
+    location_str = json.dumps(location_info, ensure_ascii=False)
+    prompt = f"""Given the location {location_str}, suggest:
     - 3 daily animal spotting tasks (common animals)
     - 2 weekly animal spotting tasks (rarer animals)
     that would be realistic to find in this area. Return as JSON with 'daily' and 'weekly' arrays."""
@@ -47,14 +49,21 @@ def generate_tasks(location_info: Dict[str, str]) -> Dict[str, list]:
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
             model="gpt-4",
-            messages=[{"role": "user", "content": prompt}],
+            messages=[{
+                "role": "user", 
+                "content": prompt.encode('utf-8').decode('utf-8')
+            }],
             response_format={"type": "json_object"}
         )
         
         if not response.choices[0].message.content:
             raise ValueError("Empty response from OpenAI")
             
-        return json.loads(response.choices[0].message.content)
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            return get_mock_tasks()
     except Exception as e:
         current_app.logger.error(f"Error calling OpenAI API: {str(e)}", exc_info=True)
         return get_mock_tasks()
@@ -67,6 +76,7 @@ def recognize_animal(image_path: str) -> Dict[str, Any]:
         return get_mock_recognition()
         
     try:
+        # Ensure proper encoding for image data
         with open(image_path, "rb") as image_file:
             base64_image = base64.b64encode(image_file.read()).decode('utf-8')
             
@@ -81,7 +91,7 @@ def recognize_animal(image_path: str) -> Dict[str, Any]:
                 "interesting_facts": ["3-4 interesting facts about the animal"]
             }
         }
-        Be specific but concise. Ensure all fields are filled with accurate information."""
+        Be specific but concise. Ensure all fields are filled with accurate information.""".encode('utf-8').decode('utf-8')
 
         response = client.chat.completions.create(
             model="gpt-4-vision-preview",
@@ -103,13 +113,18 @@ def recognize_animal(image_path: str) -> Dict[str, Any]:
         if not response.choices[0].message.content:
             raise ValueError("Empty response from OpenAI")
             
-        result = json.loads(response.choices[0].message.content)
-        
-        # Validate response structure
-        if not isinstance(result, dict) or 'animal' not in result or 'details' not in result:
-            raise ValueError("Invalid response format from OpenAI")
+        try:
+            result = json.loads(response.choices[0].message.content)
             
-        return result
+            # Validate response structure
+            if not isinstance(result, dict) or 'animal' not in result or 'details' not in result:
+                raise ValueError("Invalid response format from OpenAI")
+                
+            return result
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            return get_mock_recognition()
+            
     except Exception as e:
         current_app.logger.error(f"Error calling OpenAI API: {str(e)}", exc_info=True)
         return get_mock_recognition()
