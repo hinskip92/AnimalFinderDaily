@@ -2,9 +2,10 @@ import os
 from flask import render_template, request, jsonify, current_app
 from werkzeug.utils import secure_filename
 from app import db
-from models import Task, AnimalSpotting
+from models import Task, AnimalSpotting, Badge
 from services.gpt_service import generate_tasks, recognize_animal
 from services.location_service import get_location_info
+from services.achievement_service import AchievementService
 
 def register_routes(app):
     @app.route('/')
@@ -14,6 +15,11 @@ def register_routes(app):
     @app.route('/tasks')
     def tasks():
         return render_template('tasks.html')
+
+    @app.route('/badges')
+    def badges():
+        all_badges = Badge.query.all()
+        return render_template('badges.html', badges=all_badges)
 
     @app.route('/api/tasks', methods=['POST'])
     def get_tasks():
@@ -44,4 +50,39 @@ def register_routes(app):
         
         result = recognize_animal(filepath)
         
-        return jsonify(result)
+        # Create spotting record
+        task_id = request.form.get('task_id')
+        if task_id:
+            task = Task.query.get(task_id)
+            spotting = AnimalSpotting(
+                task=task,
+                image_path=filename,
+                recognition_result=result,
+                location=request.form.get('location')
+            )
+            db.session.add(spotting)
+            db.session.commit()
+            
+            # Check and award achievements
+            new_badges = AchievementService.check_achievements(spotting)
+            badge_names = [badge.name for badge in new_badges]
+            
+            return jsonify({
+                'result': result,
+                'new_badges': badge_names
+            })
+            
+        return jsonify({'result': result})
+
+    @app.route('/api/badges', methods=['GET'])
+    def get_badges():
+        badges = Badge.query.all()
+        return jsonify([{
+            'name': badge.name,
+            'description': badge.description,
+            'icon_class': badge.icon_class
+        } for badge in badges])
+
+    # Initialize default badges when the app starts
+    with app.app_context():
+        AchievementService.initialize_default_badges()

@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">Your Achievements</h2>
+                
+                <div class="row row-cols-1 row-cols-md-3 g-4">
+                    {% for badge in badges %}
+                    <div class="col">
+                        <div class="card h-100 {% if badge in user_badges %}border-success{% endif %}">
+                            <div class="card-body text-center">
+                                <i class="{{ badge.icon_class }} fa-2x mb-3"></i>
+                                <h5 class="card-title">{{ badge.name }}</h5>
+                                <p class="card-text">{{ badge.description }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
