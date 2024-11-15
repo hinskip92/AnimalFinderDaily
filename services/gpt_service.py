@@ -3,8 +3,9 @@ from flask import current_app
 import requests
 import json
 from openai import OpenAI
+from typing import Dict, Any, Optional
 
-def get_mock_tasks():
+def get_mock_tasks() -> Dict[str, list]:
     """Return mock tasks when OpenAI API key is not available"""
     return {
         "daily": [
@@ -18,19 +19,20 @@ def get_mock_tasks():
         ]
     }
 
-def get_mock_recognition():
+def get_mock_recognition() -> Dict[str, Any]:
     """Return mock recognition when OpenAI API key is not available"""
     return {
         "animal": "Demo Animal",
         "details": {
-            "habitat": "Demo habitat information",
-            "diet": "Demo diet information",
-            "behavior": "Demo behavior information",
-            "interesting_facts": ["Demo fact 1", "Demo fact 2"]
+            "habitat": "Natural habitat information",
+            "diet": "Diet information", 
+            "behavior": "Behavior patterns",
+            "interesting_facts": ["Fact 1", "Fact 2"]
         }
     }
 
-def generate_tasks(location_info):
+def generate_tasks(location_info: Dict[str, str]) -> Dict[str, list]:
+    """Generate animal spotting tasks based on location"""
     api_key = current_app.config.get('OPENAI_API_KEY')
     
     if not api_key:
@@ -39,21 +41,26 @@ def generate_tasks(location_info):
     prompt = f"""Given the location {location_info}, suggest:
     - 3 daily animal spotting tasks (common animals)
     - 2 weekly animal spotting tasks (rarer animals)
-    that would be realistic to find in this area. Return as JSON."""
+    that would be realistic to find in this area. Return as JSON with 'daily' and 'weekly' arrays."""
     
     try:
         client = OpenAI(api_key=api_key)
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4",
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"}
         )
+        
+        if not response.choices[0].message.content:
+            raise ValueError("Empty response from OpenAI")
+            
         return json.loads(response.choices[0].message.content)
     except Exception as e:
-        current_app.logger.error(f"Error calling OpenAI API: {str(e)}")
+        current_app.logger.error(f"Error calling OpenAI API: {str(e)}", exc_info=True)
         return get_mock_tasks()
 
-def recognize_animal(image_path):
+def recognize_animal(image_path: str) -> Dict[str, Any]:
+    """Recognize animal in image and provide detailed information"""
     api_key = current_app.config.get('OPENAI_API_KEY')
     
     if not api_key:
@@ -77,20 +84,32 @@ def recognize_animal(image_path):
         Be specific but concise. Ensure all fields are filled with accurate information."""
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4-vision-preview",
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {"type": "text", "text": prompt},
-                        {"type": "image_url", "image_url": f"data:image/jpeg;base64,{base64_image}"}
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}
+                        }
                     ]
                 }
             ],
-            response_format={"type": "json_object"}
+            max_tokens=1000
         )
         
-        return json.loads(response.choices[0].message.content)
+        if not response.choices[0].message.content:
+            raise ValueError("Empty response from OpenAI")
+            
+        result = json.loads(response.choices[0].message.content)
+        
+        # Validate response structure
+        if not isinstance(result, dict) or 'animal' not in result or 'details' not in result:
+            raise ValueError("Invalid response format from OpenAI")
+            
+        return result
     except Exception as e:
-        current_app.logger.error(f"Error calling OpenAI API: {str(e)}")
+        current_app.logger.error(f"Error calling OpenAI API: {str(e)}", exc_info=True)
         return get_mock_recognition()

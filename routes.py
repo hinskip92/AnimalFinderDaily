@@ -94,7 +94,7 @@ def register_routes(app):
             })
                 
         except Exception as e:
-            current_app.logger.error(f"Error processing image: {str(e)}")
+            current_app.logger.error(f"Error processing image: {str(e)}", exc_info=True)
             # Clean up file if it was saved
             if 'filepath' in locals():
                 try:
