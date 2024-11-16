@@ -8,10 +8,10 @@ from typing import Dict, Any, List
 
 # Set up logging to console
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.DEBUG,  # Set the log level to DEBUG to capture all log messages
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler()
+        logging.StreamHandler()  # Log to console
     ]
 )
 
@@ -41,9 +41,9 @@ def generate_tasks(location_info: Dict[str, str]) -> Dict[str, list]:
             daily: List[str]
             weekly: List[str]
 
-        # Use GPT-4 with response_format
-        completion = client.chat.completions.create(
-            model="gpt-4-vision-preview",
+        # Use Structured Outputs with response_format
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
             messages=[
                 {
                     "role": "system",
@@ -51,11 +51,10 @@ def generate_tasks(location_info: Dict[str, str]) -> Dict[str, list]:
                 },
                 {"role": "user", "content": prompt}
             ],
-            response_format={"type": "json_object"}
+            response_format=TaskResponse,
         )
 
-        response_text = completion.choices[0].message.content
-        result = TaskResponse.parse_raw(response_text)
+        result = completion.choices[0].message.parsed
 
         # Convert the Pydantic model to a dictionary
         logger.info("Successfully generated tasks.")
@@ -94,7 +93,7 @@ def recognize_animal(image_path: str) -> Dict[str, Any]:
         # Prepare the messages
         system_prompt = (
             "You are an expert wildlife identifier. Analyze the image and provide detailed information "
-            "about any animals present. Return the response in JSON format."
+            "about any animals present."
         )
         user_prompt = "Please identify the animal in this image and provide detailed information."
 
@@ -115,16 +114,15 @@ def recognize_animal(image_path: str) -> Dict[str, Any]:
             },
         ]
 
-        # Use GPT-4 Vision
-        completion = client.chat.completions.create(
-            model="gpt-4-vision-preview",
+        # Use the model that supports vision capabilities
+        completion = client.beta.chat.completions.parse(
+            model="gpt-4o-2024-08-06",
             messages=messages,
+            response_format=AnimalRecognitionResponse,
             max_tokens=1000,
-            response_format={"type": "json_object"}
         )
 
-        response_text = completion.choices[0].message.content
-        result = AnimalRecognitionResponse.parse_raw(response_text)
+        result = completion.choices[0].message.parsed
 
         # Convert the Pydantic model to a dictionary
         logger.info("Successfully recognized animal.")
