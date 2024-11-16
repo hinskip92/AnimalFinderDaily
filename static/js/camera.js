@@ -18,7 +18,11 @@ const initCamera = () => {
             fileUpload.classList.add('d-none');
             cameraError.classList.add('d-none');
         } catch (err) {
-            console.error('Camera error:', err);
+            console.error('Camera error:', {
+                message: err.message,
+                name: err.name,
+                stack: err.stack
+            });
             video.parentElement.classList.add('d-none');
             fileUpload.classList.remove('d-none');
             cameraError.classList.remove('d-none');
@@ -64,134 +68,6 @@ const initCamera = () => {
                 <i class="fas fa-exclamation-circle me-2"></i>${message}
             </div>
         `;
-    }
-
-    async function copyToClipboard(text) {
-        try {
-            await navigator.clipboard.writeText(text);
-            showNotification('<i class="fas fa-check me-2"></i>Link copied to clipboard!');
-        } catch (error) {
-            console.error('Clipboard error:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-            });
-            showNotification('Failed to copy link to clipboard', 'danger');
-        }
-    }
-
-    function openShareWindow(url, platform) {
-        const shareWindow = window.open(url, '_blank');
-        
-        // Check if popup was blocked and use fallback
-        if (!shareWindow || shareWindow.closed || typeof shareWindow.closed === 'undefined') {
-            // Fallback to opening in new tab
-            window.open(url, '_blank');
-        }
-        
-        return shareWindow;
-    }
-
-    function createSocialShareButton(platform, url, icon, color) {
-        const button = document.createElement('button');
-        button.className = `btn btn-outline-${color}`;
-        button.innerHTML = `<i class="${icon} me-2"></i>Share on ${platform}`;
-        
-        button.addEventListener('click', (e) => {
-            e.preventDefault();
-            try {
-                const shareWindow = openShareWindow(url, platform);
-                if (!shareWindow) {
-                    throw new Error('Failed to open share window');
-                }
-            } catch (error) {
-                console.error(`${platform} share error:`, {
-                    message: error.message,
-                    name: error.name,
-                    stack: error.stack
-                });
-                showNotification(`Failed to open ${platform} share. ${error.message}`, 'warning');
-            }
-        });
-        
-        return button;
-    }
-
-    function showShareOptions(shareUrl) {
-        // Remove existing share container if present
-        const existingShare = document.querySelector('.share-container');
-        if (existingShare) {
-            existingShare.remove();
-        }
-
-        try {
-            // Encode the URL and text properly
-            const encodedUrl = encodeURIComponent(shareUrl);
-            const encodedText = encodeURIComponent('Check out this animal I spotted!');
-            
-            const shareContainer = document.createElement('div');
-            shareContainer.className = 'share-container mt-3';
-            
-            const buttonContainer = document.createElement('div');
-            buttonContainer.className = 'd-flex justify-content-center gap-2 flex-wrap';
-            
-            // Twitter share button with properly encoded URL and text
-            const twitterUrl = `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedText}`;
-            buttonContainer.appendChild(
-                createSocialShareButton(
-                    'Twitter',
-                    twitterUrl,
-                    'fab fa-twitter',
-                    'info'
-                )
-            );
-            
-            // Facebook share button
-            const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`;
-            buttonContainer.appendChild(
-                createSocialShareButton(
-                    'Facebook',
-                    facebookUrl,
-                    'fab fa-facebook',
-                    'primary'
-                )
-            );
-            
-            // Copy link button
-            const copyButton = document.createElement('button');
-            copyButton.className = 'btn btn-outline-secondary';
-            copyButton.innerHTML = '<i class="fas fa-link me-2"></i>Copy Link';
-            copyButton.addEventListener('click', () => copyToClipboard(shareUrl));
-            buttonContainer.appendChild(copyButton);
-            
-            shareContainer.appendChild(buttonContainer);
-            recognitionResult.insertAdjacentElement('afterend', shareContainer);
-        } catch (error) {
-            console.error('Share options error:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-            });
-            showErrorMessage('Failed to create share options', error);
-        }
-    }
-
-    function showBadgeNotification(badges) {
-        if (!badges || badges.length === 0) return;
-        
-        const notification = document.createElement('div');
-        notification.className = 'alert alert-success alert-dismissible fade show';
-        notification.innerHTML = `
-            <strong>🎉 New Achievement${badges.length > 1 ? 's' : ''}!</strong><br>
-            ${badges.join(', ')}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        `;
-        
-        document.querySelector('.camera-container').insertAdjacentElement('afterend', notification);
-        
-        setTimeout(() => {
-            notification.remove();
-        }, 5000);
     }
 
     function handleImageSubmission(formData) {
@@ -245,12 +121,6 @@ const initCamera = () => {
                     </div>
                 </div>
             `;
-            if (data.new_badges) {
-                showBadgeNotification(data.new_badges);
-            }
-            if (data.share_url) {
-                showShareOptions(data.share_url);
-            }
         })
         .catch(error => {
             console.error('Recognition error:', {
@@ -258,7 +128,7 @@ const initCamera = () => {
                 name: error.name,
                 stack: error.stack
             });
-            showErrorMessage('Error processing image. Please try again.', error);
+            showErrorMessage('Failed to process image. Please try again or use a different image.', error);
         });
     }
 
@@ -266,26 +136,38 @@ const initCamera = () => {
     if (captureBtn) {
         captureBtn.addEventListener('click', () => {
             try {
+                // Ensure video is playing and has valid dimensions
+                if (!video.videoWidth || !video.videoHeight) {
+                    throw new Error('Video stream not ready. Please wait or try again.');
+                }
+
+                // Set up canvas with video dimensions
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
-                const ctx = canvas.getContext('2d');
                 
+                const ctx = canvas.getContext('2d');
                 if (!ctx) {
                     throw new Error('Could not get canvas context');
                 }
-                
+
+                // Draw the video frame to canvas
                 ctx.drawImage(video, 0, 0);
-                
-                canvas.toBlob(blob => {
-                    if (!blob) {
-                        throw new Error('Failed to create blob from canvas');
-                    }
-                    
-                    const formData = new FormData();
-                    formData.append('camera_image', blob, 'capture.jpg');
-                    handleImageSubmission(formData);
-                    stopCamera();
-                }, 'image/jpeg', 0.95);
+
+                // Create blob with proper error handling
+                canvas.toBlob(
+                    (blob) => {
+                        if (!blob) {
+                            showErrorMessage('Failed to capture image. Please try again.');
+                            return;
+                        }
+                        const formData = new FormData();
+                        formData.append('camera_image', blob, 'capture.jpg');
+                        handleImageSubmission(formData);
+                        stopCamera();
+                    },
+                    'image/jpeg',
+                    0.95
+                );
             } catch (error) {
                 console.error('Capture error:', {
                     message: error.message,
@@ -305,12 +187,12 @@ const initCamera = () => {
             const file = fileInput.files[0];
             
             if (!file) {
-                showErrorMessage('Please select a file first');
+                showErrorMessage('Please select an image file first');
                 return;
             }
 
             if (!file.type.startsWith('image/')) {
-                showErrorMessage('Please select an image file');
+                showErrorMessage('Please select a valid image file (JPEG, PNG, etc.)');
                 return;
             }
 
