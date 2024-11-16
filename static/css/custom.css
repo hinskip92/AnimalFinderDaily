@@ -55,3 +55,52 @@
 .btn-secondary {
     margin-right: 0.5rem;
 }
+
+/* Add to existing CSS */
+.task-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+    background: var(--bs-gray-800);
+    border-radius: 6px;
+}
+
+.task-item .task-status {
+    margin-right: 1rem;
+}
+
+.task-item .task-name {
+    flex-grow: 1;
+}
+
+.task-item .task-progress {
+    width: 100px;
+    height: 6px;
+    margin-left: 1rem;
+}
+
+.badge {
+    padding: 0.5rem 1rem;
+    font-size: 0.9rem;
+}
+
+#recent-badges {
+    min-height: 38px;
+}
+
+.task-type-indicator {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    margin-left: 0.5rem;
+}
+
+.task-type-daily {
+    background: var(--bs-primary);
+}
+
+.task-type-weekly {
+    background: var(--bs-warning);
+    color: var(--bs-dark);
+}

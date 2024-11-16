@@ -3,6 +3,46 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-md-8">
+        <!-- Current Tasks Card -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="card-title mb-0">Today's Tasks</h3>
+                    <a href="{{ url_for('tasks') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-list me-1"></i>View All
+                    </a>
+                </div>
+                <div id="current-tasks">
+                    <div class="text-center">
+                        <div class="spinner-border spinner-border-sm" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Badges Card -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h3 class="card-title mb-0">Recent Achievements</h3>
+                    <a href="{{ url_for('badges') }}" class="btn btn-outline-secondary btn-sm">
+                        <i class="fas fa-trophy me-1"></i>View All
+                    </a>
+                </div>
+                <div id="recent-badges" class="d-flex flex-wrap gap-2">
+                    {% for badge in recent_badges %}
+                    <div class="badge bg-secondary">
+                        <i class="{{ badge.icon_class }} me-1"></i>
+                        {{ badge.name }}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Existing Camera Card -->
         <div class="card">
             <div class="card-body">
                 <h2 class="card-title text-center mb-4">Animal Spotter Camera</h2>
@@ -47,7 +87,12 @@
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/camera.js') }}"></script>
+<script src="{{ url_for('static', filename='js/location.js') }}"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', initCamera);
+    document.addEventListener('DOMContentLoaded', () => {
+        // Update the ID to match what location.js expects
+        document.getElementById('current-tasks').id = 'tasks-list';
+        getLocationAndTasks();
+    });
 </script>
 {% endblock %}

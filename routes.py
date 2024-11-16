@@ -1,9 +1,9 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import render_template, request, jsonify, current_app, url_for, abort
 from werkzeug.utils import secure_filename
 from app import db
-from models import Task, AnimalSpotting, Badge
+from models import Task, AnimalSpotting, Badge, spotting_badges  # Add spotting_badges import
 from services.gpt_service import generate_tasks, recognize_animal
 from services.location_service import get_location_info
 from services.achievement_service import AchievementService
@@ -15,7 +15,22 @@ def register_routes(app):
 
     @app.route('/')
     def index():
-        return render_template('index.html')
+        # Get today's tasks
+        today = datetime.utcnow().date()
+        current_tasks = Task.query.filter(
+            Task.expires_at >= today,
+            Task.created_at <= today + timedelta(days=1)
+        ).all()
+        
+        # Get recent badges (last 5)
+        recent_badges = Badge.query.join(spotting_badges)\
+            .join(AnimalSpotting)\
+            .order_by(spotting_badges.c.awarded_at.desc())\
+            .limit(5).all()
+        
+        return render_template('index.html', 
+                             current_tasks=current_tasks,
+                             recent_badges=recent_badges)
 
     @app.route('/tasks')
     def tasks():
@@ -157,6 +172,24 @@ def register_routes(app):
         except Exception as e:
             current_app.logger.error(f"Error fetching badges: {str(e)}", exc_info=True)
             return jsonify({'error': 'Failed to fetch badges'}), 500
+
+    @app.route('/api/tasks/current')
+    def get_current_tasks():
+        today = datetime.utcnow().date()
+        current_tasks = Task.query.filter(
+            Task.expires_at >= today,
+            Task.created_at <= today + timedelta(days=1)
+        ).all()
+        
+        tasks_data = [{
+            'id': task.id,
+            'animal': task.animal,
+            'task_type': task.task_type,
+            'completed': bool(task.spottings),
+            'progress': len(task.spottings) if task.task_type == 'daily' else None
+        } for task in current_tasks]
+        
+        return jsonify({'tasks': tasks_data})
 
     # Initialize default badges when the app starts
     with app.app_context():
