@@ -1,0 +1,54 @@
+def generate_tasks(location_info: Dict[str, str]) -> Dict[str, list]:
+    """Generate animal spotting tasks based on location."""
+    api_key = current_app.config.get('OPENAI_API_KEY')
+
+    if not api_key:
+        return get_mock_tasks()
+
+    # Ensure location info is properly encoded
+    location_str = json.dumps(location_info, ensure_ascii=False)
+    prompt = (
+        f"Given the location {location_str}, suggest 3 daily animal spotting tasks "
+        f"(common animals) and 2 weekly animal spotting tasks (rarer animals) that would "
+        f"be realistic to find in this area. Return as JSON with 'daily' and 'weekly' arrays."
+    )
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Confirmed correct model name
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that returns responses in JSON format."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "type": "object",
+                    "properties": {
+                        "daily": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        },
+                        "weekly": {
+                            "type": "array",
+                            "items": {"type": "string"}
+                        }
+                    },
+                    "required": ["daily", "weekly"],
+                    "additionalProperties": False
+                }
+            }
+        )
+
+        if not response.choices[0].message.content:
+            raise ValueError("Empty response from OpenAI")
+
+        try:
+            return json.loads(response.choices[0].message.content)
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            return get_mock_tasks()
+    except Exception as e:
+        current_app.logger.error(f"Error calling OpenAI API: {str(e)}", exc_info=True)
+        return get_mock_tasks() 

@@ -38,3 +38,20 @@
     background: var(--bs-gray-800);
     border-radius: 8px;
 }
+
+/* Add these styles at the end of the file */
+.file-upload-container {
+    padding: 2rem;
+    border: 2px dashed var(--bs-gray-600);
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+#image-upload {
+    margin-bottom: 1rem;
+}
+
+.btn-secondary {
+    margin-right: 0.5rem;
+}

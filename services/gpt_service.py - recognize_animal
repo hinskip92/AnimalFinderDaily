@@ -1,0 +1,95 @@
+def recognize_animal(image_path: str) -> Dict[str, Any]:
+    """Recognize animal in image and provide detailed information."""
+    api_key = current_app.config.get('OPENAI_API_KEY')
+
+    if not api_key:
+        return get_mock_recognition()
+
+    try:
+        # Ensure proper encoding for image data
+        with open(image_path, "rb") as image_file:
+            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+
+        client = OpenAI(api_key=api_key)
+        system_prompt = (
+            "You are an expert wildlife identifier. Analyze the image and provide detailed information "
+            "about any animals present. Return the information as a JSON object."
+        )
+        user_prompt = """
+        Please identify the animal in this image and provide detailed information in the following format:
+        {
+            "animal": "Name of the animal",
+            "details": {
+                "habitat": "Natural habitat and geographical distribution",
+                "diet": "Feeding habits and typical food sources",
+                "behavior": "Notable behavioral characteristics",
+                "interesting_facts": ["Fact 1", "Fact 2", "Fact 3"]
+            }
+        }
+        """
+
+        response = client.chat.completions.create(
+            model="gpt-4o",  # Confirmed correct model name
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+                    ]
+                }
+            ],
+            max_tokens=1000,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "type": "object",
+                    "properties": {
+                        "animal": {"type": "string"},
+                        "details": {
+                            "type": "object",
+                            "properties": {
+                                "habitat": {"type": "string"},
+                                "diet": {"type": "string"},
+                                "behavior": {"type": "string"},
+                                "interesting_facts": {
+                                    "type": "array",
+                                    "items": {"type": "string"}
+                                }
+                            },
+                            "required": ["habitat", "diet", "behavior", "interesting_facts"],
+                            "additionalProperties": False
+                        }
+                    },
+                    "required": ["animal", "details"],
+                    "additionalProperties": False
+                }
+            }
+        )
+
+        if not response.choices[0].message.content:
+            raise ValueError("Empty response from OpenAI")
+
+        try:
+            result = json.loads(response.choices[0].message.content)
+
+            # Validate response structure
+            if not isinstance(result, dict):
+                raise ValueError("Response is not a JSON object.")
+            required_keys = {"animal", "details"}
+            if not required_keys.issubset(result.keys()):
+                raise ValueError(f"Missing keys in response: {required_keys - result.keys()}")
+
+            details = result["details"]
+            required_fields = {"habitat", "diet", "behavior", "interesting_facts"}
+            if not required_fields.issubset(details.keys()):
+                raise ValueError(f"Missing detail fields: {required_fields - details.keys()}")
+
+            return result
+        except json.JSONDecodeError as e:
+            current_app.logger.error(f"Failed to parse OpenAI response: {str(e)}")
+            return get_mock_recognition()
+    except Exception as e:
+        current_app.logger.error(f"Error calling OpenAI API: {str(e)}", exc_info=True)
+        return get_mock_recognition() 

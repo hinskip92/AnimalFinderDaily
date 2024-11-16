@@ -1,13 +1,54 @@
 const initCamera = () => {
     const video = document.getElementById('camera-preview');
     const captureBtn = document.getElementById('capture-btn');
-    const canvas = document.getElementById('capture-canvas');
-    const cameraError = document.getElementById('camera-error');
     const fileUpload = document.getElementById('file-upload');
     const uploadForm = document.getElementById('upload-form');
     const recognitionResult = document.getElementById('recognition-result');
+    const switchToUploadBtn = document.createElement('button');
     let stream = null;
 
+    // Add switch button
+    switchToUploadBtn.className = 'btn btn-secondary mt-3';
+    switchToUploadBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Switch to File Upload';
+    document.querySelector('.camera-container').appendChild(switchToUploadBtn);
+
+    switchToUploadBtn.addEventListener('click', () => {
+        stopCamera();
+        video.parentElement.classList.add('d-none');
+        fileUpload.classList.remove('d-none');
+        switchToUploadBtn.classList.add('d-none');
+    });
+
+    // Show loading indicator during file upload
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById('image-upload');
+            
+            if (!fileInput.files || !fileInput.files[0]) {
+                showErrorMessage('Please select an image file first');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            if (!file.type.startsWith('image/')) {
+                showErrorMessage('Please select a valid image file (JPEG, PNG, etc.)');
+                return;
+            }
+
+            recognitionResult.innerHTML = `
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Analyzing image...</p>
+            `;
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            handleImageSubmission(formData);
+        });
+    }
     async function startCamera() {
         try {
             stream = await navigator.mediaDevices.getUserMedia({ 
