@@ -5,7 +5,18 @@ const initCamera = () => {
     const uploadForm = document.getElementById('upload-form');
     const recognitionResult = document.getElementById('recognition-result');
     const switchToUploadBtn = document.createElement('button');
+    const canvas = document.createElement('canvas');
     let stream = null;
+
+    // Create camera error element and container
+    const errorContainer = document.getElementById('camera-error');
+    const cameraError = errorContainer || document.createElement('div');
+    if (!errorContainer) {
+        cameraError.className = 'alert alert-warning';
+        cameraError.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>Camera access failed. Using file upload mode.';
+        cameraError.style.display = 'none';
+        document.querySelector('.camera-container').appendChild(cameraError);
+    }
 
     // Add switch button
     switchToUploadBtn.className = 'btn btn-secondary mt-3';
@@ -19,45 +30,33 @@ const initCamera = () => {
         switchToUploadBtn.classList.add('d-none');
     });
 
-    // Show loading indicator during file upload
-    if (uploadForm) {
-        uploadForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const fileInput = document.getElementById('image-upload');
-            
-            if (!fileInput.files || !fileInput.files[0]) {
-                showErrorMessage('Please select an image file first');
-                return;
-            }
-
-            const file = fileInput.files[0];
-            if (!file.type.startsWith('image/')) {
-                showErrorMessage('Please select a valid image file (JPEG, PNG, etc.)');
-                return;
-            }
-
-            recognitionResult.innerHTML = `
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
-                </div>
-                <p class="mt-2">Analyzing image...</p>
-            `;
-
-            const formData = new FormData();
-            formData.append('image', file);
-
-            handleImageSubmission(formData);
-        });
-    }
     async function startCamera() {
         try {
             stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'environment' } 
+                video: { 
+                    facingMode: 'environment',
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                } 
             });
             video.srcObject = stream;
+            
+            // Wait for video to be ready
+            await new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('Video stream initialization timeout'));
+                }, 5000);
+
+                video.addEventListener('loadedmetadata', () => {
+                    clearTimeout(timeout);
+                    video.play().then(resolve).catch(reject);
+                }, { once: true });
+            });
+
             video.parentElement.classList.remove('d-none');
             fileUpload.classList.add('d-none');
-            cameraError.classList.add('d-none');
+            cameraError.style.display = 'none';
+            switchToUploadBtn.classList.remove('d-none');
         } catch (err) {
             console.error('Camera error:', {
                 message: err.message,
@@ -66,7 +65,8 @@ const initCamera = () => {
             });
             video.parentElement.classList.add('d-none');
             fileUpload.classList.remove('d-none');
-            cameraError.classList.remove('d-none');
+            cameraError.style.display = 'block';
+            switchToUploadBtn.classList.add('d-none');
         }
     }
 
@@ -93,7 +93,7 @@ const initCamera = () => {
         
         setTimeout(() => {
             notification.remove();
-        }, 3000);
+        }, 5000);
     }
 
     function showErrorMessage(message, error = null) {
@@ -112,12 +112,20 @@ const initCamera = () => {
     }
 
     function handleImageSubmission(formData) {
-        recognitionResult.innerHTML = '<div class="spinner-border" role="status"><span class="visually-hidden">Loading...</span></div>';
+        recognitionResult.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Analyzing image...</p>
+            </div>
+        `;
         
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 position => {
                     formData.append('location', `${position.coords.latitude},${position.coords.longitude}`);
+                    submitImage(formData);
                 },
                 error => {
                     console.warn('Location error:', {
@@ -125,17 +133,27 @@ const initCamera = () => {
                         name: error.name,
                         code: error.code
                     });
-                }
+                    submitImage(formData);
+                },
+                { timeout: 10000 }
             );
+        } else {
+            submitImage(formData);
         }
-        
+    }
+
+    function submitImage(formData) {
         fetch('/api/recognize', {
             method: 'POST',
             body: formData
         })
-        .then(response => {
+        .then(async response => {
+            const contentType = response.headers.get('content-type');
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                const errorData = contentType && contentType.includes('application/json') 
+                    ? await response.json()
+                    : { error: `HTTP error! status: ${response.status}` };
+                throw new Error(errorData.error || `Server error (${response.status})`);
             }
             return response.json();
         })
@@ -143,6 +161,7 @@ const initCamera = () => {
             if (data.error) {
                 throw new Error(data.error);
             }
+            
             recognitionResult.innerHTML = `
                 <div class="alert alert-success">
                     <h4 class="alert-heading">
@@ -162,24 +181,22 @@ const initCamera = () => {
                     </div>
                 </div>
             `;
+
+            if (data.new_badges && data.new_badges.length > 0) {
+                showNotification(`Congratulations! You earned ${data.new_badges.length} new badge(s): ${data.new_badges.join(', ')}`);
+            }
         })
         .catch(error => {
-            console.error('Recognition error:', {
-                message: error.message,
-                name: error.name,
-                stack: error.stack
-            });
             showErrorMessage('Failed to process image. Please try again or use a different image.', error);
         });
     }
 
     // Handle camera capture
     if (captureBtn) {
-        captureBtn.addEventListener('click', () => {
+        captureBtn.addEventListener('click', async () => {
             try {
-                // Ensure video is playing and has valid dimensions
-                if (!video.videoWidth || !video.videoHeight) {
-                    throw new Error('Video stream not ready. Please wait or try again.');
+                if (!stream || !video.srcObject) {
+                    throw new Error('Camera stream is not available. Please wait or try again.');
                 }
 
                 // Set up canvas with video dimensions
@@ -204,7 +221,6 @@ const initCamera = () => {
                         const formData = new FormData();
                         formData.append('camera_image', blob, 'capture.jpg');
                         handleImageSubmission(formData);
-                        stopCamera();
                     },
                     'image/jpeg',
                     0.95
@@ -215,7 +231,7 @@ const initCamera = () => {
                     name: error.name,
                     stack: error.stack
                 });
-                showErrorMessage('Failed to capture image. Please try again or use file upload.', error);
+                showErrorMessage(error.message, error);
             }
         });
     }
@@ -244,7 +260,12 @@ const initCamera = () => {
     }
 
     // Start camera by default
-    startCamera();
+    startCamera().catch(error => {
+        console.error('Failed to start camera:', error);
+        showErrorMessage('Camera initialization failed. Please use file upload instead.');
+        video.parentElement.classList.add('d-none');
+        fileUpload.classList.remove('d-none');
+    });
 };
 
 // Initialize when DOM is loaded
